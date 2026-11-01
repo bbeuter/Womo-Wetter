@@ -1,7 +1,9 @@
 //! Region polygons (regions.geojson), regular grid and point assignment.
 
 use anyhow::{bail, Context, Result};
-use geo::{BoundingRect, Coord, InteriorPoint, Intersects, LineString, MultiPolygon, Point, Polygon, Rect};
+use geo::{
+    BoundingRect, Coord, InteriorPoint, Intersects, LineString, MultiPolygon, Point, Polygon, Rect,
+};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -64,7 +66,11 @@ enum Geometry {
 
 fn to_polygon(rings: &[Vec<[f64; 2]>]) -> Option<Polygon<f64>> {
     let mut it = rings.iter().map(|r| {
-        LineString::from(r.iter().map(|c| Coord { x: c[0], y: c[1] }).collect::<Vec<_>>())
+        LineString::from(
+            r.iter()
+                .map(|c| Coord { x: c[0], y: c[1] })
+                .collect::<Vec<_>>(),
+        )
     });
     let ext = it.next()?;
     Some(Polygon::new(ext, it.collect()))
@@ -239,7 +245,7 @@ fn extra_points(region: &Region, step: f64, need: usize) -> Vec<(f64, f64)> {
             .map(|(i, j)| g.center(i, j))
             .filter(|&(x, y)| region.contains(x, y))
             .collect();
-        if cand.len() >= need + 1 {
+        if cand.len() > need {
             break;
         }
         fine /= 2.0;
@@ -268,7 +274,10 @@ mod tests {
         assert_eq!(r.list[0].id, "west");
         assert_eq!(r.list[1].cc, "NL");
         let b = r.bbox();
-        assert_eq!((b.min().x, b.min().y, b.max().x, b.max().y), (6.0, 50.0, 7.6, 51.0));
+        assert_eq!(
+            (b.min().x, b.min().y, b.max().x, b.max().y),
+            (6.0, 50.0, 7.6, 51.0)
+        );
     }
 
     #[test]

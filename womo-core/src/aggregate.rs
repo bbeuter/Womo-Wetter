@@ -44,7 +44,11 @@ pub fn day_class(sun_h: f64, daylen_h: f64, rain: f64) -> char {
     if rain >= 60.0 && sun_h < 2.0 {
         return 'R';
     }
-    let ratio = if daylen_h > 0.0 { sun_h / daylen_h } else { 0.0 };
+    let ratio = if daylen_h > 0.0 {
+        sun_h / daylen_h
+    } else {
+        0.0
+    };
     if ratio >= 0.6 {
         'S'
     } else if ratio >= 0.4 {
@@ -75,7 +79,11 @@ where
     if n == 0 {
         return None;
     }
-    let (s, c) = if ws.hypot(wc) > 1e-9 { (ws, wc) } else { (us, uc) };
+    let (s, c) = if ws.hypot(wc) > 1e-9 {
+        (ws, wc)
+    } else {
+        (us, uc)
+    };
     if s.hypot(c) < 1e-9 {
         return None;
     }
@@ -149,7 +157,11 @@ pub fn aggregate_region(
 
     for &t in &axis.hours {
         let samples: Vec<HourSample> = points.iter().filter_map(|p| p.hourly.at(t)).collect();
-        let sun_vals: Vec<f64> = samples.iter().filter_map(|s| s.sunshine).map(sun_pct).collect();
+        let sun_vals: Vec<f64> = samples
+            .iter()
+            .filter_map(|s| s.sunshine)
+            .map(sun_pct)
+            .collect();
         let sun_m = mean(sun_vals.iter().copied()).map(round_i);
         let sunny_m = (!sun_vals.is_empty()).then(|| {
             let k = sun_vals.iter().filter(|&&v| v >= 50.0).count();
@@ -205,9 +217,7 @@ pub fn aggregate_region(
             let ds: Vec<_> = points.iter().filter_map(|p| p.daily.at(date)).collect();
             let near = points.get(nearest).and_then(|p| p.daily.at(date));
             let computed = sun::sunrise_sunset(date, center.1, center.0);
-            let rise = near
-                .and_then(|d| d.sunrise)
-                .or(computed.map(|c| c.0));
+            let rise = near.and_then(|d| d.sunrise).or(computed.map(|c| c.0));
             let set = near.and_then(|d| d.sunset).or(computed.map(|c| c.1));
             let daylen_h = match (rise, set) {
                 (Some(r), Some(s)) if s > r => (s - r) as f64 / 3600.0,
@@ -278,7 +288,7 @@ mod tests {
     #[test]
     fn wind_vector_mean() {
         let m = wind_dir_mean([(Some(10.0), 350.0), (Some(10.0), 10.0)]).unwrap();
-        assert!(m < 0.01 || m > 359.99, "{m}");
+        assert!(!(0.01..=359.99).contains(&m), "{m}");
         let m = wind_dir_mean([(Some(5.0), 90.0), (Some(5.0), 180.0)]).unwrap();
         assert!((m - 135.0).abs() < 1e-9);
         // Speed weighting: strong west wind dominates weak east wind.
@@ -302,15 +312,49 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(grid_char(Some(base)), '9');
-        assert_eq!(grid_char(Some(HourSample { sunshine: Some(1800.0), ..base })), '5');
-        assert_eq!(grid_char(Some(HourSample { sunshine: Some(359.0), ..base })), '0');
-        assert_eq!(grid_char(Some(HourSample { sunshine: Some(3239.0), ..base })), '8');
         assert_eq!(
-            grid_char(Some(HourSample { precip_prob: Some(70.0), precip: Some(1.0), ..base })),
+            grid_char(Some(HourSample {
+                sunshine: Some(1800.0),
+                ..base
+            })),
+            '5'
+        );
+        assert_eq!(
+            grid_char(Some(HourSample {
+                sunshine: Some(359.0),
+                ..base
+            })),
+            '0'
+        );
+        assert_eq!(
+            grid_char(Some(HourSample {
+                sunshine: Some(3239.0),
+                ..base
+            })),
+            '8'
+        );
+        assert_eq!(
+            grid_char(Some(HourSample {
+                precip_prob: Some(70.0),
+                precip: Some(1.0),
+                ..base
+            })),
             'R'
         );
-        assert_eq!(grid_char(Some(HourSample { is_day: Some(0.0), ..base })), 'N');
-        assert_eq!(grid_char(Some(HourSample { sunshine: None, ..base })), '.');
+        assert_eq!(
+            grid_char(Some(HourSample {
+                is_day: Some(0.0),
+                ..base
+            })),
+            'N'
+        );
+        assert_eq!(
+            grid_char(Some(HourSample {
+                sunshine: None,
+                ..base
+            })),
+            '.'
+        );
         assert_eq!(grid_char(None), '.');
     }
 

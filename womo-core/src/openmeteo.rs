@@ -365,7 +365,12 @@ impl Client {
             if b > 0 {
                 std::thread::sleep(self.pause);
             }
-            eprintln!("Open-Meteo: Paket {}/{} ({} Orte)", b + 1, n_batches, chunk.len());
+            eprintln!(
+                "Open-Meteo: Paket {}/{} ({} Orte)",
+                b + 1,
+                n_batches,
+                chunk.len()
+            );
             let pts = self
                 .fetch_batch(chunk)
                 .with_context(|| format!("batch {}/{}", b + 1, n_batches))?;
@@ -408,11 +413,11 @@ impl Client {
                         continue;
                     }
                 }
-                Err(e) => last_err = anyhow!(e),
+                Err(e) => last_err = anyhow!(e.without_url()),
             }
             if attempt < self.retries {
                 let wait = Duration::from_secs(5 * 3u64.pow(attempt - 1));
-                eprintln!("  Versuch {attempt} fehlgeschlagen ({last_err}), warte {wait:?}");
+                eprintln!("  Versuch {attempt} fehlgeschlagen ({last_err:#}), warte {wait:?}");
                 std::thread::sleep(wait);
             }
         }
@@ -453,7 +458,10 @@ mod tests {
         assert_eq!(day.sunshine, Some(24120.0));
         assert_eq!(p.daily.date[1], d("2026-11-08"));
         // Second location differs.
-        assert_eq!(pts[1].hourly.at(1_794_006_000).unwrap().precip_prob, Some(80.0));
+        assert_eq!(
+            pts[1].hourly.at(1_794_006_000).unwrap().precip_prob,
+            Some(80.0)
+        );
         assert_eq!(pts[1].daily.at(d("2026-11-08")).unwrap().tmax, Some(9.4));
     }
 
@@ -462,8 +470,14 @@ mod tests {
         let pts = parse_response(SINGLE_ISO).unwrap();
         assert_eq!(pts.len(), 1);
         let p = &pts[0];
-        assert_eq!(crate::time::fmt_local(p.hourly.time[0]), "2026-11-07T00:00+01:00");
-        assert_eq!(crate::time::fmt_local(p.hourly.time[2]), "2026-11-07T02:00+01:00");
+        assert_eq!(
+            crate::time::fmt_local(p.hourly.time[0]),
+            "2026-11-07T00:00+01:00"
+        );
+        assert_eq!(
+            crate::time::fmt_local(p.hourly.time[2]),
+            "2026-11-07T02:00+01:00"
+        );
         let day = p.daily.at(d("2026-11-07")).unwrap();
         assert_eq!(crate::time::fmt_hm(day.sunset.unwrap()), "16:59");
         // Missing variable arrays are padded with None.

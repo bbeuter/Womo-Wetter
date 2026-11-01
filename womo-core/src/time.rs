@@ -22,7 +22,9 @@ impl TimeAxis {
         let today = local.date_naive();
         let start = local_midnight(today);
         let hours = (0..HOURS as i64).map(|h| start + h * 3600).collect();
-        let days = (0..DAYS as i64).map(|d| today + Duration::days(d)).collect();
+        let days = (0..DAYS as i64)
+            .map(|d| today + Duration::days(d))
+            .collect();
         TimeAxis {
             generated: local,
             hours,
@@ -35,7 +37,10 @@ impl TimeAxis {
     }
 
     pub fn day_strings(&self) -> Vec<String> {
-        self.days.iter().map(|d| d.format("%Y-%m-%d").to_string()).collect()
+        self.days
+            .iter()
+            .map(|d| d.format("%Y-%m-%d").to_string())
+            .collect()
     }
 }
 
