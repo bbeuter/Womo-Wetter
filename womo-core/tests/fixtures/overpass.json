@@ -13,6 +13,12 @@
       "tags": { "tourism": "caravan_site", "name": "Camping Ost", "fee": "no" } },
     { "type": "relation", "id": 9, "center": { "lat": 50.9, "lon": 6.9 },
       "tags": { "tourism": "caravan_site", "name": "Großer Platz" } },
-    { "type": "way", "id": 11, "tags": { "tourism": "caravan_site", "name": "Ohne Koordinaten" } }
+    { "type": "way", "id": 11, "tags": { "tourism": "caravan_site", "name": "Ohne Koordinaten" } },
+    { "type": "way", "id": 12, "center": { "lat": 50.3, "lon": 6.5 },
+      "tags": { "tourism": "camp_site" } },
+    { "type": "node", "id": 13, "lat": 50.3, "lon": 6.6,
+      "tags": { "tourism": "camp_site", "name": "Nur Zelte", "caravans": "no" } },
+    { "type": "node", "id": 14, "lat": 50.3, "lon": 6.7,
+      "tags": { "tourism": "caravan_site", "name": "Privat", "access": "private" } }
   ]
 }

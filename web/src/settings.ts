@@ -17,7 +17,7 @@ export function openSettings(dlg: HTMLDialogElement, onChange: () => void): void
   dlg.innerHTML = `
     <form method="dialog" class="sheetbody">
       <div class="sheethead">
-        <h2 id="settingsTitle">Startort &amp; Tempo</h2>
+        <h2 id="settingsTitle">Einstellungen</h2>
         <button class="close" value="close" aria-label="Schließen">✕</button>
       </div>
       <fieldset class="modes">
@@ -46,6 +46,15 @@ export function openSettings(dlg: HTMLDialogElement, onChange: () => void): void
       <label class="field range"><span><output id="spOut">${settings.speed}</output> km/h Durchschnitt</span>
         <input type="range" id="speed" min="50" max="110" step="5" value="${settings.speed}" aria-label="Reisetempo in km/h"></label>
       <p class="hint">Fahrzeit ≈ Luftlinie × 1,3 ÷ Tempo.</p>
+
+      <h3>Navigation</h3>
+      <fieldset class="modes">
+        <legend class="sr">Route öffnen mit</legend>
+        <label class="opt"><input type="radio" name="nav" value="google"${settings.nav === 'google' ? ' checked' : ''}>
+          <span><b>Google Maps</b></span></label>
+        <label class="opt"><input type="radio" name="nav" value="apple"${settings.nav === 'apple' ? ' checked' : ''}>
+          <span><b>Apple Karten</b></span></label>
+      </fieldset>
       <button class="btn primary done" value="ok">Fertig</button>
     </form>`;
 
@@ -90,6 +99,10 @@ export function openSettings(dlg: HTMLDialogElement, onChange: () => void): void
     msg.textContent = `Heimatort gesetzt: ${name}`;
     commit();
   });
+  dlg.querySelectorAll<HTMLInputElement>('input[name=nav]').forEach(r => r.addEventListener('change', () => {
+    settings.nav = r.value === 'apple' ? 'apple' : 'google';
+    commit();
+  }));
   const sp = q<HTMLInputElement>('#speed');
   sp.addEventListener('input', () => { q('#spOut').textContent = sp.value; });
   sp.addEventListener('change', () => { settings.speed = +sp.value; commit(); });

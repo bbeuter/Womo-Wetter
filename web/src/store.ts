@@ -8,6 +8,8 @@ export interface Settings {
   home: Place;
   speed: number;           // km/h
   lastGps?: Place & { at: number };
+  nav: 'apple' | 'google'; // Navigations-App für "Route"
+  siteFilter: 'all' | 'caravan_site' | 'camp_site';
 }
 const KEY = 'sonnenradar.settings.v1';
 const FAV = 'sonnenradar.favs.v1';
@@ -15,7 +17,12 @@ const FAV = 'sonnenradar.favs.v1';
 function read<T>(key: string, fallback: T): T {
   try { const s = localStorage.getItem(key); return s ? { ...fallback, ...JSON.parse(s) } : fallback; } catch { return fallback; }
 }
-export const settings: Settings = read<Settings>(KEY, { mode: 'home', home: { ...DEFAULT_HOME }, speed: 75 });
+const isApple = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent);
+export const settings: Settings = read<Settings>(KEY, {
+  mode: 'home', home: { ...DEFAULT_HOME }, speed: 75, nav: isApple ? 'apple' : 'google', siteFilter: 'all',
+});
+if (settings.nav !== 'apple' && settings.nav !== 'google') settings.nav = isApple ? 'apple' : 'google';
+if (!['all', 'caravan_site', 'camp_site'].includes(settings.siteFilter)) settings.siteFilter = 'all';
 if (!(settings.speed >= 30 && settings.speed <= 130)) settings.speed = 75;
 
 export function saveSettings(): void {

@@ -7,6 +7,11 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+  # Commits des Stellplatz-Workflows lösen kein "push" aus (GITHUB_TOKEN),
+  # deshalb danach ausdrücklich neu veröffentlichen.
+  workflow_run:
+    workflows: ["Stellplätze aktualisieren"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -19,9 +24,12 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main   # bei workflow_run den neuesten Stand inkl. Stellplätze holen
 
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
