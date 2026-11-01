@@ -1,25 +1,18 @@
 // Detail-Panel einer Region.
 import { CLASSES, asCls, beaufort, compass, dateOf, ddmm, hhmm, hourOf, wdShort } from './data';
-import { drive, haversineKm } from './geo';
-import { esc, fmt1, safeUrl } from './dom';
+import { drive } from './geo';
+import { bindSites, sitesSection } from './sites';
+import { esc, fmt1 } from './dom';
 import { dailyFor, weekendDates } from './model';
 import { favs, settings, startPlace, toggleFav } from './store';
 import type { Ctx } from './state';
 
-const isApple = (): boolean => /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent);
-export function routeLinks(lat: number, lon: number): { primary: string; label: string; alt: string; altLabel: string } {
-  const apple = `https://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`;
-  const google = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`;
-  return isApple()
-    ? { primary: apple, label: 'Apple Karten', alt: google, altLabel: 'Google Maps' }
-    : { primary: google, label: 'Google Maps', alt: apple, altLabel: 'Apple Karten' };
-}
 const windArrow = (deg: number): string =>
   `<span class="warrow" style="transform:rotate(${(deg + 180) % 360}deg)" aria-hidden="true">↑</span>`;
 
 export function renderDetail(ctx: Ctx, el: HTMLElement, id: string): void {
   const { st } = ctx;
-  const { latest, byId, sites } = st.data;
+  const { latest, byId } = st.data;
   const r = byId.get(id)!;
   const rw = latest.regions[id];
   const H = rw.hourly, i = st.idx;
@@ -30,7 +23,6 @@ export function renderDetail(ctx: Ctx, el: HTMLElement, id: string): void {
   const dToday = dailyFor(rw, today);
   const selDate = dateOf(latest.hours[i]);
   const fav = favs.has(id);
-  const route = routeLinks(r.center[1], r.center[0]);
 
   // Stundenstreifen 07–20 des Tages der gewählten Stunde
   const hours: string[] = [];
@@ -56,27 +48,6 @@ export function renderDetail(ctx: Ctx, el: HTMLElement, id: string): void {
     </li>`;
   }).join('');
 
-  let sitesHtml = '';
-  if (sites) {
-    const list = sites.filter(s => s.region === id)
-      .map(s => ({ s, km: Math.round(haversineKm(from, s) * 1.3) }))
-      .sort((a, b) => a.km - b.km);
-    const item = ({ s, km }: { s: typeof list[number]['s']; km: number }) => {
-      const web = safeUrl(s.website);
-      const rl = routeLinks(s.lat, s.lon);
-      const fee = s.fee === 'yes' ? 'kostenpflichtig' : s.fee === 'no' ? 'kostenlos' : s.fee ? esc(s.fee) : '';
-      return `<li class="site"><span class="sdot" aria-hidden="true"></span>
-        <span class="name"><b>${esc(s.name ?? 'Wohnmobil-Stellplatz')}</b><small>${km} km${fee ? ' · ' + fee : ''}</small></span>
-        ${web ? `<a class="lnk" href="${esc(web)}" target="_blank" rel="noopener">Web</a>` : ''}
-        <a class="lnk" href="${esc(rl.primary)}" target="_blank" rel="noopener" aria-label="Route zu ${esc(s.name ?? 'Stellplatz')}">Route</a></li>`;
-    };
-    sitesHtml = `<h3>Stellplätze (${list.length})</h3>` + (list.length
-      ? `<ul class="sites">${list.slice(0, 8).map(item).join('')}</ul>` +
-        (list.length > 8 ? `<details class="more"><summary>Alle ${list.length} anzeigen</summary><ul class="sites">${list.slice(8).map(item).join('')}</ul></details>` : '')
-      : '<p class="hint">Keine Stellplätze in dieser Region bekannt.</p>') +
-      '<p class="attr">Stellplätze: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a> (ODbL)</p>';
-  }
-
   el.innerHTML = `
     <div class="dhead">
       <h2><span class="badge-l c${c}" style="background:${CLASSES[c].color}">${c}</span> ${esc(r.name)}</h2>
@@ -93,17 +64,12 @@ export function renderDetail(ctx: Ctx, el: HTMLElement, id: string): void {
     </div>
     <h3>Stundenverlauf ${selDate === today ? 'heute' : 'morgen'}</h3>
     <div class="hours" role="group" aria-label="Stunde wählen">${hours.join('') || '<p class="hint">Keine Tagesstunden verfügbar.</p>'}</div>
-    <div class="actions">
-      <a class="btn primary" href="${route.primary}" target="_blank" rel="noopener">🚐 Route starten</a>
-      <button type="button" class="btn" id="favBtn2" aria-pressed="${fav}">${fav ? '★ Gemerkt' : '☆ Merken'}</button>
-    </div>
-    <div class="altlink"><a href="${route.alt}" target="_blank" rel="noopener">oder mit ${route.altLabel} öffnen</a></div>
+    ${sitesSection(ctx, id)}
     <h3>7-Tage-Ausblick</h3>
-    <ul class="days">${days}</ul>
-    ${sitesHtml}`;
+    <ul class="days">${days}</ul>`;
 
   el.querySelectorAll<HTMLButtonElement>('.hour').forEach(b => b.addEventListener('click', () => ctx.setIdx(+b.dataset.idx!)));
   const onFav = () => { toggleFav(id); ctx.renderAll(); };
   el.querySelector('#favBtn')?.addEventListener('click', onFav);
-  el.querySelector('#favBtn2')?.addEventListener('click', onFav);
+  bindSites(ctx, el);
 }

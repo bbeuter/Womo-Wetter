@@ -5,6 +5,7 @@ import { bboxOf, makeProjection, pathOf, type BBox, type Projection } from './ge
 import { svgEl, reducedMotion } from './dom';
 import { TOWNS, LABEL_TOWNS } from './towns';
 import { startPlace, favs } from './store';
+import { KIND, kindOf, markSite, siteVisible } from './sites';
 
 const countries = countriesRaw as unknown as Record<string, LonLat[][][]>;
 const CORE = ['DEU', 'NLD', 'BEL', 'LUX'];
@@ -21,6 +22,7 @@ export class SunMap {
   private vb: number[];
   private anim = 0;
   private selected: string | null = null;
+  private selSite: string | null = null;
 
   constructor(svg: SVGSVGElement, private data: AppData, private onSelect: (id: string) => void) {
     this.svg = svg;
@@ -128,6 +130,7 @@ export class SunMap {
   }
 
   select(id: string | null, idx: number): void {
+    if (id !== this.selected) this.selSite = null;
     this.selected = id;
     this.gDetail.innerHTML = '';
     const target = id ? this.fitBox(this.regs.get(id)!.bb) : [0, 0, this.P.W, this.P.H];
@@ -162,12 +165,21 @@ export class SunMap {
     if (this.data.grid) this.heat(inner, this.data.grid, idx, e.bb);
     svgEl('path', { d: e.d, class: 'hl' }, g);
 
-    // Stellplätze dieser Region
+    // Übernachtungsplätze dieser Region (Stellplatz = grüner Kreis, Camping = braunes Quadrat)
+    const gSites = svgEl('g', { class: 'sites' });
     for (const s of this.data.sites ?? []) {
-      if (s.region !== id) continue;
+      if (s.region !== id || !siteVisible(s)) continue;
       const [x, y] = this.P.proj(s.lon, s.lat);
-      const c = svgEl('circle', { cx: x, cy: y, r: 4 * px, class: 'site' }, g);
-      svgEl('title', {}, c).textContent = s.name ?? 'Wohnmobil-Stellplatz';
+      const m = svgEl('g', { class: 'sitem ' + kindOf(s), 'data-site': s.id, transform: `translate(${x.toFixed(2)} ${y.toFixed(2)})` }, gSites);
+      svgEl('circle', { r: 12 * px, class: 'hit' }, m);
+      if (kindOf(s) === 'camp_site') svgEl('rect', { x: -4.5 * px, y: -4.5 * px, width: 9 * px, height: 9 * px, rx: 2 * px, class: 'mk' }, m);
+      else svgEl('circle', { r: 5 * px, class: 'mk' }, m);
+      svgEl('title', {}, m).textContent = `${KIND[kindOf(s)].icon} ${s.name ?? KIND[kindOf(s)].label}`;
+      m.addEventListener('click', ev => {
+        ev.stopPropagation();
+        this.highlightSite(s.id);
+        markSite(s.id, true);
+      });
     }
     // Orte (aus eingebauter Liste) mit einfacher Kollisionsvermeidung
     const fs = 13 * px;
@@ -185,6 +197,16 @@ export class SunMap {
       const tx = svgEl('text', { x: x + fs * 0.4, y: y - fs * 0.3, class: 'town', 'font-size': fs.toFixed(2) }, g);
       tx.textContent = t.name;
     }
+    g.appendChild(gSites);
+    if (this.selSite) this.highlightSite(this.selSite);
+  }
+
+  /** Platz-Markierung hervorheben. */
+  highlightSite(id: string): void {
+    this.selSite = id;
+    this.gDetail.querySelectorAll('.sitem.sel').forEach(x => x.classList.remove('sel'));
+    const m = this.gDetail.querySelector(`.sitem[data-site="${CSS.escape(id)}"]`);
+    if (m) { m.classList.add('sel'); m.parentNode?.appendChild(m); }
   }
 
   private heat(parent: SVGGElement, grid: Grid, idx: number, bb: BBox): void {
