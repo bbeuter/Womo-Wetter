@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sonnen-Radar">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#F5B400" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12161D" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<meta name="format-detection" content="telephone=no">
+<meta name="description" content="Womo-Wetter: Wo scheint jetzt und in den nächsten Stunden die Sonne? Für spontane Wohnmobil-Touren in DE, NL, BE, LU und Grenzgebiet FR.">
+<title>Sonnen-Radar – Womo-Wetter</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+</head>
+<body>
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">☀︎</span>
+      <div class="brandtext">
+        <h1>Sonnen-Radar</h1>
+        <div class="sub" id="status" aria-live="polite">Lade Vorhersage …</div>
+      </div>
+    </div>
+    <button class="chip start" id="startBtn" type="button" aria-haspopup="dialog">📍 Start</button>
+  </header>
+
+  <nav class="slots" id="slots" role="tablist" aria-label="Zeitpunkt"></nav>
+
+  <main class="layout">
+    <section class="mapwrap" aria-label="Karte">
+      <button class="back hidden" id="backBtn" type="button">‹ Übersicht</button>
+      <svg id="map" role="group" aria-label="Karte der Sonnenregionen" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="legend" id="legend" aria-label="Legende"></div>
+    </section>
+    <aside class="side" id="side" aria-live="polite">
+      <button class="grab" id="grab" type="button" aria-label="Liste vergrößern oder verkleinern"></button>
+      <div id="sideBody"><p class="hint">Lade …</p></div>
+    </aside>
+  </main>
+</div>
+
+<dialog id="settings" class="sheet" aria-labelledby="settingsTitle"></dialog>
+
+<noscript>Diese App benötigt JavaScript.</noscript>
+<script type="module" src="./src/main.ts"></script>
+</body>
+</html>

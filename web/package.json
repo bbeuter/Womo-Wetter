@@ -1,0 +1,20 @@
+{
+  "name": "womo-wetter-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "sample-data": "node scripts/make-sample-data.mjs",
+    "countries": "node scripts/make-countries.mjs",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "devDependencies": {
+    "polygon-clipping": "^0.15.7",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  }
+}
