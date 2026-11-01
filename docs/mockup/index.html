@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#F5B400">
+<title>Womo-Wetter – Sonnen-Radar (Prototyp)</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand">
+      <span class="logo">☀︎</span>
+      <div>
+        <h1>Sonnen-Radar</h1>
+        <div class="sub" id="updated">Prototyp · Beispieldaten · Sa 10:00</div>
+      </div>
+    </div>
+    <button class="chip start" id="startBtn" title="Startort ändern">📍 Start: Köln</button>
+  </header>
+
+  <nav class="slots" id="slots" role="tablist" aria-label="Zeitpunkt"></nav>
+
+  <main class="layout">
+    <section class="mapwrap">
+      <button class="back hidden" id="backBtn">‹ Übersicht</button>
+      <svg id="map" viewBox="0 0 1000 1100" preserveAspectRatio="xMidYMid meet" aria-label="Karte der Sonnenregionen"></svg>
+      <div class="legend" id="legend"></div>
+    </section>
+
+    <aside class="side" id="side"></aside>
+  </main>
+</div>
+<script src="geo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
