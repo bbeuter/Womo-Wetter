@@ -205,3 +205,13 @@ h3{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted
 .slot:disabled{opacity:.35;cursor:default}
 @media (prefers-color-scheme:dark){.cB{color:#fff!important}}
 .cN{color:#fff!important}
+
+.site{display:block}
+.srow{display:flex;align-items:center;gap:8px;cursor:pointer}
+.amen{letter-spacing:1px}
+.sx{padding:4px 4px 8px 38px;font-size:13px}
+.sx p{margin:4px 0}
+.amenl{display:flex;flex-wrap:wrap;gap:6px}
+.amenl span{background:var(--bg);border-radius:999px;padding:4px 8px}
+.sxb{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.sxb .lnk{min-height:40px}

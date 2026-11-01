@@ -59,6 +59,37 @@ fn non_empty(tags: &HashMap<String, String>, keys: &[&str]) -> Option<String> {
         .map(str::to_string)
 }
 
+/// Amenity codes: P power, W water, T toilets, S shower, D dump station, I internet.
+const AMENITIES: [(char, &str); 6] = [
+    ('P', "power_supply"),
+    ('W', "drinking_water"),
+    ('T', "toilets"),
+    ('S', "shower"),
+    ('D', "sanitary_dump_station"),
+    ('I', "internet_access"),
+];
+
+fn amenities(tags: &HashMap<String, String>) -> String {
+    AMENITIES
+        .iter()
+        .filter(|(_, k)| {
+            tags.get(*k)
+                .is_some_and(|v| !v.trim().is_empty() && v != "no")
+        })
+        .map(|(c, _)| *c)
+        .collect()
+}
+
+/// First integer in a tag value ("40", "ca. 40", "40;10").
+fn leading_int(v: Option<&String>) -> Option<u32> {
+    let digits: String = v?
+        .chars()
+        .skip_while(|c| !c.is_ascii_digit())
+        .take_while(char::is_ascii_digit)
+        .collect();
+    digits.parse().ok().filter(|n| *n > 0)
+}
+
 /// Parses an Overpass JSON response and maps sites to regions.
 /// Elements outside all regions or without coordinates are dropped.
 pub fn parse_overpass(body: &str, regions: &Regions) -> Result<Vec<Stellplatz>> {
@@ -104,6 +135,11 @@ pub fn parse_overpass(body: &str, regions: &Regions) -> Result<Vec<Stellplatz>> 
                 kind: kind.to_string(),
                 fee: non_empty(&e.tags, &["fee"]),
                 website: non_empty(&e.tags, &["website", "contact:website", "url"]),
+                amenities: amenities(&e.tags),
+                capacity: leading_int(e.tags.get("capacity:motorhome").or(e.tags.get("capacity"))),
+                stars: leading_int(e.tags.get("stars"))
+                    .filter(|s| *s <= 5)
+                    .map(|s| s as u8),
             })
         })
         .collect();
@@ -160,6 +196,9 @@ mod tests {
         assert_eq!(n1.region, "west");
         assert_eq!(n1.fee.as_deref(), Some("yes"));
         assert_eq!(n1.website.as_deref(), Some("https://example.org"));
+        assert_eq!(n1.amenities, "PWD");
+        assert_eq!(n1.capacity, Some(40));
+        assert_eq!(n1.stars, None);
         assert_eq!((n1.lon, n1.lat), (6.81235, 50.21));
         let n2 = &items[1];
         assert_eq!(n2.name, "Stellplatz");
@@ -169,7 +208,7 @@ mod tests {
         assert_eq!(w5.region, "east");
         assert_eq!((w5.lon, w5.lat), (7.5, 50.7));
         let json = serde_json::to_string(n2).unwrap();
-        assert!(!json.contains("fee") && !json.contains("null"));
+        assert!(!json.contains("fee") && !json.contains("null") && !json.contains("\"am\""));
     }
 
     #[test]

@@ -106,5 +106,10 @@ Je Region und Ortstag (00–24 Uhr, an Umstellungstagen 23/25 h) aus den Regions
 ```
 - Quelle: Overpass, `tourism=caravan_site` (Knoten + Flächen-Mittelpunkte) im Gebiet.
 - `region` per Punkt-in-Polygon gegen `regions.geojson`; Punkte außerhalb aller Regionen weglassen.
+- Optionale Zusatzfelder aus OSM-Tags:
+  - `am`: Ausstattungs-Codes, je Zeichen eine vorhandene Ausstattung (Tag vorhanden und ≠ `no`):
+    `P` power_supply · `W` drinking_water · `T` toilets · `S` shower · `D` sanitary_dump_station · `I` internet_access
+  - `cap`: Anzahl Plätze (`capacity:motorhome`, sonst `capacity`; erste Zahl)
+  - `stars`: Sterne-Kategorie 1–5 (`stars`, v. a. Campingplätze)
 - Fehlende Felder weglassen (nicht `null`).
 - Daten © OpenStreetMap-Mitwirkende, ODbL – Hinweis in der App anzeigen.

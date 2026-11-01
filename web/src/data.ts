@@ -33,6 +33,7 @@ export interface Grid {
 export interface Stellplatz {
   id: string; name?: string; lon: number; lat: number; region: string;
   type?: string; fee?: string; website?: string;
+  am?: string; cap?: number; stars?: number;
 }
 export interface Stellplaetze { generated: string; items: Stellplatz[] }
 
