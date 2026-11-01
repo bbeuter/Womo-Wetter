@@ -1,0 +1,66 @@
+# Holt alle 3 Stunden die Vorhersage, baut die Web-App und veröffentlicht beides auf GitHub Pages.
+name: Vorhersage & Deploy
+
+on:
+  schedule:
+    - cron: "23 */3 * * *"   # ICON-D2 wird alle 3 h aktualisiert
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: womo-core
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Web-App bauen
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Vorhersage berechnen (Open-Meteo)
+        run: |
+          mkdir -p web/dist/data
+          cargo run --release --manifest-path womo-core/Cargo.toml -- \
+            forecast --regions data/regions.geojson --out web/dist/data
+
+      - name: Statische Daten kopieren
+        run: |
+          cp data/regions.geojson web/dist/data/
+          if [ -f data/stellplaetze.json ]; then cp data/stellplaetze.json web/dist/data/; fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
