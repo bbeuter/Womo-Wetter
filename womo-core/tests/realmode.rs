@@ -6,18 +6,42 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::Timelike;
 use womo_core::cli::build_outputs;
 use womo_core::openmeteo::Client;
 use womo_core::regions::{build_points, Regions};
 use womo_core::time::TimeAxis;
 
-/// Serves the first location of the fixture once per requested coordinate.
+/// 2026-11-07T00:00+01:00
+const T0: i64 = 1_794_006_000;
+
+/// One location, 7 days + 1 h in Open-Meteo convention: sunshine covers the
+/// preceding hour and is full for 08:00–16:00 local; is_day is 1 at 08..=16.
+fn location_json() -> serde_json::Value {
+    let n = 7 * 24 + 1;
+    let times: Vec<i64> = (0..n).map(|k| T0 + k * 3600).collect();
+    let hour = |t: &i64| womo_core::time::to_local(*t).hour();
+    serde_json::json!({
+        "latitude": 50.5, "longitude": 6.5, "utc_offset_seconds": 3600,
+        "timezone": "Europe/Berlin",
+        "hourly": {
+            "time": times,
+            "sunshine_duration": times.iter().map(|t| if (9..=16).contains(&hour(t)) { 3600.0 } else { 0.0 }).collect::<Vec<_>>(),
+            "precipitation_probability": vec![10; n as usize],
+            "precipitation": vec![0.0; n as usize],
+            "temperature_2m": times.iter().map(|t| 10.0 + hour(t) as f64 / 2.0).collect::<Vec<_>>(),
+            "wind_speed_10m": vec![10.0; n as usize],
+            "wind_direction_10m": vec![250; n as usize],
+            "is_day": times.iter().map(|t| u8::from((8..=16).contains(&hour(t)))).collect::<Vec<_>>(),
+        }
+    })
+}
+
+/// Fake Open-Meteo: answers each request with one location per requested latitude.
 fn spawn_server(requests: Arc<AtomicUsize>) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
-    let fixture: serde_json::Value =
-        serde_json::from_str(include_str!("fixtures/openmeteo_multi.json")).unwrap();
-    let one = fixture[0].clone();
+    let one = location_json();
     std::thread::spawn(move || {
         for stream in listener.incoming() {
             let mut stream = stream.unwrap();
@@ -75,14 +99,25 @@ fn real_mode_with_fake_server() {
     assert_eq!(v["source"], "open-meteo icon_seamless");
     let west = &v["regions"]["west"];
     let cls = west["hourly"]["cls"].as_str().unwrap();
-    assert_eq!(&cls[0..2], "NN");
-    assert_eq!(&cls[10..11], "S");
-    assert_eq!(west["hourly"]["sun"][10], 100);
-    assert_eq!(west["hourly"]["sunny"][10], 100);
-    assert_eq!(west["daily"][0]["sunset"], "16:59");
-    assert_eq!(west["daily"][0]["sun_h"], 6.7);
-    assert_eq!(west["daily"][0]["cls"], "S");
-    // Grid: every in-region cell is '9' at 10:00, the gap column is '.'.
-    let row0 = &g.sun[10][0..g.nx];
-    assert_eq!(row0, "99999.9");
+    // Hour h describes h..h+1: 07 is N (no sun before 08:00), 08–15 sunny,
+    // 16 is day (is_day at 16:00) without sun, 17 night.
+    assert_eq!(&cls[0..24], "NNNNNNNNSSSSSSSSBNNNNNNN");
+    assert_eq!(&cls[24..48], &cls[0..24]);
+    assert_eq!(west["hourly"]["sun"][8], 100);
+    assert_eq!(west["hourly"]["sunny"][8], 100);
+    assert_eq!(west["hourly"]["sun"][16], 0);
+    assert_eq!(west["hourly"]["temp"][10], 15);
+    let d0 = &west["daily"][0];
+    assert_eq!(d0["sun_h"], 8.0);
+    assert_eq!(d0["cls"], "S");
+    assert_eq!(d0["rain"], 10);
+    assert_eq!(d0["wind"], 10);
+    assert_eq!(d0["wdir"], 250);
+    assert_eq!(d0["tmax"], 22);
+    assert_eq!(d0["tmin"], 10);
+    assert!(d0["sunset"].as_str().unwrap().starts_with("16:"));
+    assert_eq!(west["daily"][6]["sun_h"], 8.0);
+    // Grid at 10:00: every in-region cell is '9', the gap column is '.'.
+    assert_eq!(&g.sun[10][0..g.nx], "99999.9");
+    assert_eq!(&g.sun[2][0..g.nx], "NNNNN.N");
 }

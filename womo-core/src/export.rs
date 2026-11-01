@@ -84,7 +84,7 @@ pub struct Stellplatz {
     pub website: Option<String>,
 }
 
-/// Encodes one string per hour, row by row from south (lat0) to north, west → east.
+/// Encodes one string per output hour (h..h+1, see `HourlySeries::window`), row by row from south (lat0) to north, west → east.
 /// `weather[k]` belongs to `points[k]`; points without a cell are ignored.
 pub fn encode_grid(
     grid: &Grid,
@@ -98,7 +98,7 @@ pub fn encode_grid(
             let mut row = vec![b'.'; grid.len()];
             for (p, w) in points.iter().zip(weather) {
                 if let Some(c) = p.cell {
-                    row[c] = grid_char(w.hourly.at(t)) as u8;
+                    row[c] = grid_char(w.hourly.window(t)) as u8;
                 }
             }
             String::from_utf8(row).expect("ascii")
@@ -128,17 +128,13 @@ mod tests {
         let mut h = HourlySeries::with_capacity(1);
         h.time.push(t);
         h.sunshine.push(Some(sunshine));
-        h.cloud_cover.push(None);
         h.precip_prob.push(Some(pp));
         h.precip.push(Some(pr));
         h.temp.push(Some(10.0));
         h.wind.push(Some(5.0));
         h.wdir.push(Some(180.0));
         h.is_day.push(Some(is_day));
-        PointWeather {
-            hourly: h,
-            daily: Default::default(),
-        }
+        PointWeather { hourly: h }
     }
 
     #[test]

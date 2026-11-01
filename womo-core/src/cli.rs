@@ -57,7 +57,7 @@ pub struct ForecastArgs {
     #[arg(long, env = "OPEN_METEO_APIKEY", hide_env_values = true)]
     pub apikey: Option<String>,
     /// Pause zwischen Paketen in Sekunden (Rate-Limit 600 Aufrufe/min).
-    #[arg(long, default_value_t = 16.0)]
+    #[arg(long, default_value_t = 10.0)]
     pub pause: f64,
 }
 
@@ -93,17 +93,6 @@ fn parse_now(now: Option<&str>) -> Result<DateTime<Utc>> {
     }
 }
 
-/// Index of the point nearest to `center` (lon, lat) among `idx`.
-fn nearest(points: &[SamplePoint], idx: &[usize], center: (f64, f64)) -> usize {
-    let k = center.1.to_radians().cos();
-    let d = |p: &SamplePoint| ((p.lon - center.0) * k).powi(2) + (p.lat - center.1).powi(2);
-    idx.iter()
-        .enumerate()
-        .min_by(|a, b| d(&points[*a.1]).total_cmp(&d(&points[*b.1])))
-        .map(|(i, _)| i)
-        .unwrap_or(0)
-}
-
 /// Aggregates all regions and builds both output documents.
 pub fn build_outputs(
     regions: &Regions,
@@ -121,10 +110,9 @@ pub fn build_outputs(
     for (ri, region) in regions.list.iter().enumerate() {
         let idx = &by_region[ri];
         let pw: Vec<&PointWeather> = idx.iter().map(|&i| &weather[i]).collect();
-        let near = nearest(points, idx, region.center);
         out.insert(
             region.id.clone(),
-            aggregate_region(&pw, near, region.center, axis),
+            aggregate_region(&pw, region.center, axis),
         );
     }
     let hours = axis.hour_strings();
@@ -262,18 +250,5 @@ mod tests {
         assert!(g.sun[2].chars().all(|c| c == 'N' || c == '.'));
         // Gap column between the squares (lon 7.25) has no data.
         assert_eq!(g.sun[12].as_bytes()[5], b'.');
-    }
-
-    #[test]
-    fn nearest_point() {
-        let mk = |lon, lat| SamplePoint {
-            lon,
-            lat,
-            region: 0,
-            cell: None,
-        };
-        let pts = vec![mk(6.0, 50.0), mk(6.5, 50.5), mk(7.0, 51.0)];
-        assert_eq!(nearest(&pts, &[0, 1, 2], (6.6, 50.4)), 1);
-        assert_eq!(nearest(&pts, &[2, 0], (6.1, 50.1)), 1);
     }
 }

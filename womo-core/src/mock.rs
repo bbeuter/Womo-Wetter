@@ -4,8 +4,7 @@
 //! behind it), a second front follows a few days later, and the Danube valley
 //! has morning fog under high pressure. Day/night uses the real sun position.
 
-use crate::aggregate::wind_dir_mean;
-use crate::openmeteo::{DailySeries, HourlySeries, PointWeather};
+use crate::openmeteo::{HourlySeries, PointWeather};
 use crate::regions::SamplePoint;
 use crate::sun;
 use crate::time::{to_local, TimeAxis, DAYS};
@@ -60,7 +59,6 @@ fn danube_dist(lon: f64, lat: f64) -> f64 {
 
 struct Hour {
     sunshine: f64,
-    cloud: f64,
     pp: f64,
     precip: f64,
     temp: f64,
@@ -128,7 +126,6 @@ fn hour_weather(lon: f64, lat: f64, t: i64, th: f64, fog_dist: f64) -> Hour {
 
     Hour {
         sunshine,
-        cloud: cloud.round(),
         pp,
         precip: (precip * 10.0).round() / 10.0,
         temp: (temp * 10.0).round() / 10.0,
@@ -138,10 +135,12 @@ fn hour_weather(lon: f64, lat: f64, t: i64, th: f64, fog_dist: f64) -> Hour {
     }
 }
 
-/// Synthetic weather for one location over the full 7-day axis.
+/// Synthetic weather for one location over the full 7-day axis
+/// (Open-Meteo convention: sunshine/precipitation cover the preceding hour).
 pub fn point_weather(lon: f64, lat: f64, axis: &TimeAxis) -> PointWeather {
     let start = axis.hours[0];
-    let n = DAYS * 24 + 1;
+    // One extra day boundary hour plus one for the DST-long day.
+    let n = DAYS * 24 + 2;
     let fog_dist = danube_dist(lon, lat);
     let mut h = HourlySeries::with_capacity(n);
     for k in 0..n {
@@ -149,7 +148,6 @@ pub fn point_weather(lon: f64, lat: f64, axis: &TimeAxis) -> PointWeather {
         let w = hour_weather(lon, lat, t, k as f64, fog_dist);
         h.time.push(t);
         h.sunshine.push(Some(w.sunshine));
-        h.cloud_cover.push(Some(w.cloud));
         h.precip_prob.push(Some(w.pp));
         h.precip.push(Some(w.precip));
         h.temp.push(Some(w.temp));
@@ -157,38 +155,7 @@ pub fn point_weather(lon: f64, lat: f64, axis: &TimeAxis) -> PointWeather {
         h.wdir.push(Some(w.wdir));
         h.is_day.push(Some(if w.is_day { 1.0 } else { 0.0 }));
     }
-
-    let mut d = DailySeries::default();
-    for &date in &axis.days {
-        // Hours belonging to this local day (sunshine of the preceding hour → shift by 1).
-        let idx: Vec<usize> = (0..n)
-            .filter(|&i| to_local(h.time[i] - 3600).date_naive() == date)
-            .collect();
-        let vals =
-            |v: &Vec<Option<f64>>| -> Vec<f64> { idx.iter().filter_map(|&i| v[i]).collect() };
-        let max = |v: Vec<f64>| v.into_iter().reduce(f64::max);
-        let min = |v: Vec<f64>| v.into_iter().reduce(f64::min);
-        let ss = sun::sunrise_sunset(date, lat, lon);
-        d.date.push(date);
-        d.sunrise.push(ss.map(|x| x.0));
-        d.sunset.push(ss.map(|x| x.1));
-        d.sunshine.push(Some(vals(&h.sunshine).iter().sum()));
-        d.tmax.push(max(vals(&h.temp)));
-        d.tmin.push(min(vals(&h.temp)));
-        d.precip_prob_max.push(max(vals(&h.precip_prob)));
-        d.wind_max.push(max(vals(&h.wind)));
-        d.wdir_dominant.push(
-            wind_dir_mean(
-                idx.iter()
-                    .filter_map(|&i| h.wdir[i].map(|w| (h.wind[i], w))),
-            )
-            .map(f64::round),
-        );
-    }
-    PointWeather {
-        hourly: h,
-        daily: d,
-    }
+    PointWeather { hourly: h }
 }
 
 /// Synthetic weather for all sample points (same order).
@@ -224,11 +191,11 @@ mod tests {
         let w = point_weather(6.96, 50.94, &a);
         // 02:00 local and 22:00 local.
         for h in [2, 22] {
-            let s = w.hourly.at(a.hours[h]).unwrap();
+            let s = w.hourly.window(a.hours[h]).unwrap();
             assert_eq!(s.is_day, Some(0.0));
             assert_eq!(s.sunshine, Some(0.0));
         }
-        let s = w.hourly.at(a.hours[12]).unwrap();
+        let s = w.hourly.window(a.hours[12]).unwrap();
         assert_eq!(s.is_day, Some(1.0));
     }
 
@@ -238,7 +205,7 @@ mod tests {
         // Regensburg vs. a point 1° north of it, day 3 (high pressure behind front).
         let fog = point_weather(12.1, 49.0, &a);
         let t = a.hours[0] + (48 + 9) * 3600;
-        let s = fog.hourly.at(t).unwrap();
+        let s = fog.hourly.window(t).unwrap();
         assert_eq!(s.sunshine, Some(0.0), "fog expected in the morning");
         assert!(danube_dist(12.1, 50.0) > 0.5);
     }
@@ -250,7 +217,7 @@ mod tests {
         let rainy_hour = |lon: f64, lat: f64| {
             let w = point_weather(lon, lat, &a);
             (0..48).find(|&h| {
-                let s = w.hourly.at(a.hours[h]).unwrap();
+                let s = w.hourly.window(a.hours[h]).unwrap();
                 s.precip_prob.unwrap() >= 50.0 && s.precip.unwrap() >= 0.2
             })
         };
@@ -260,13 +227,10 @@ mod tests {
     }
 
     #[test]
-    fn daily_has_sunrise_and_sun_hours() {
+    fn covers_seven_days_plus_shift() {
         let a = axis();
         let w = point_weather(6.96, 50.94, &a);
-        assert_eq!(w.daily.date.len(), 7);
-        let d = w.daily.at(a.days[0]).unwrap();
-        assert_eq!(crate::time::fmt_hm(d.sunset.unwrap()).len(), 5);
-        let sh = d.sunshine.unwrap() / 3600.0;
-        assert!((0.0..=10.0).contains(&sh), "{sh}");
+        let last_day_end = crate::time::local_midnight(a.days[6]) + 24 * 3600;
+        assert!(w.hourly.time.contains(&last_day_end));
     }
 }

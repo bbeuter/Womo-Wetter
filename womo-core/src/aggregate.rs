@@ -3,7 +3,8 @@
 use crate::export::{RegionDaily, RegionHourly, RegionOut};
 use crate::openmeteo::{HourSample, PointWeather};
 use crate::sun;
-use crate::time::{fmt_hm, TimeAxis};
+use crate::time::{fmt_hm, local_midnight, to_local, TimeAxis};
+use chrono::NaiveDate;
 
 /// Sunshine share of one hour in percent (0–100).
 pub fn sun_pct(sunshine_s: f64) -> f64 {
@@ -135,116 +136,151 @@ fn fill(v: Vec<Option<i32>>) -> Vec<i32> {
         .collect()
 }
 
+/// Region mean of all points for one output hour (unrounded).
+#[derive(Debug, Clone, Copy, Default)]
+struct HourAgg {
+    /// Mean sunshine share in % (0–100).
+    sun: Option<f64>,
+    /// Share of points with sun ≥ 50 %, in %.
+    sunny: Option<f64>,
+    rain: Option<f64>,
+    precip: f64,
+    temp: Option<f64>,
+    wind: Option<f64>,
+    wdir: Option<f64>,
+    night: bool,
+    /// No point has data for this hour.
+    empty: bool,
+}
+
+fn region_hour(points: &[&PointWeather], t: i64, center: (f64, f64)) -> HourAgg {
+    let samples: Vec<HourSample> = points.iter().filter_map(|p| p.hourly.window(t)).collect();
+    if samples.is_empty() {
+        // No data: decide night from the computed sun position.
+        let night = sun::elevation(t + 1800, center.1, center.0) < sun::HORIZON_ELEVATION_DEG;
+        return HourAgg {
+            night,
+            empty: true,
+            ..Default::default()
+        };
+    }
+    let sun_vals: Vec<f64> = samples
+        .iter()
+        .filter_map(|s| s.sunshine)
+        .map(sun_pct)
+        .collect();
+    let flags: Vec<f64> = samples.iter().filter_map(|s| s.is_day).collect();
+    let nights = flags.iter().filter(|&&d| d < 0.5).count();
+    HourAgg {
+        sun: mean(sun_vals.iter().copied()),
+        sunny: (!sun_vals.is_empty()).then(|| {
+            let k = sun_vals.iter().filter(|&&v| v >= 50.0).count();
+            k as f64 * 100.0 / sun_vals.len() as f64
+        }),
+        rain: mean(samples.iter().filter_map(|s| s.precip_prob)),
+        precip: mean(samples.iter().filter_map(|s| s.precip)).unwrap_or(0.0),
+        temp: mean(samples.iter().filter_map(|s| s.temp)),
+        wind: mean(samples.iter().filter_map(|s| s.wind)),
+        wdir: wind_dir_mean(samples.iter().filter_map(|s| s.wdir.map(|d| (s.wind, d)))),
+        night: nights * 2 > flags.len(),
+        empty: false,
+    }
+}
+
+impl HourAgg {
+    /// Hour class from the rounded output values.
+    fn class(&self) -> char {
+        if self.empty {
+            return if self.night { 'N' } else { 'B' };
+        }
+        hour_class(
+            self.night,
+            self.rain.map(f64::round).unwrap_or(0.0),
+            self.precip,
+            self.sun.map(f64::round).unwrap_or(0.0),
+        )
+    }
+}
+
+fn max_of<I: IntoIterator<Item = f64>>(it: I) -> Option<f64> {
+    it.into_iter().reduce(f64::max)
+}
+
+fn min_of<I: IntoIterator<Item = f64>>(it: I) -> Option<f64> {
+    it.into_iter().reduce(f64::min)
+}
+
+/// Daily values derived from the region-mean hourly data of one local day.
+fn region_day(points: &[&PointWeather], date: NaiveDate, center: (f64, f64)) -> RegionDaily {
+    let start = local_midnight(date);
+    let hours: Vec<HourAgg> = (0..25)
+        .map(|k| start + k * 3600)
+        .filter(|&t| to_local(t).date_naive() == date)
+        .map(|t| region_hour(points, t, center))
+        .collect();
+    let data: Vec<&HourAgg> = hours.iter().filter(|h| !h.empty).collect();
+    let day: Vec<&HourAgg> = data.iter().copied().filter(|h| !h.night).collect();
+    // Daylight hours, or all hours if none qualify.
+    let day_or_all = if day.is_empty() { &data } else { &day };
+
+    let sun_h_raw = data.iter().filter_map(|h| h.sun).sum::<f64>() / 100.0;
+    let sun_h = (sun_h_raw * 10.0).round() / 10.0;
+    let rain = round_i(max_of(day_or_all.iter().filter_map(|h| h.rain)).unwrap_or(0.0));
+    let wdir = wind_dir_mean(
+        day_or_all
+            .iter()
+            .filter_map(|h| h.wdir.map(|d| (h.wind, d))),
+    );
+
+    let ss = sun::sunrise_sunset(date, center.1, center.0);
+    let daylen_h = ss.map(|(r, s)| (s - r) as f64 / 3600.0).unwrap_or(0.0);
+    RegionDaily {
+        date: date.format("%Y-%m-%d").to_string(),
+        sunrise: ss.map(|x| fmt_hm(x.0)),
+        sunset: ss.map(|x| fmt_hm(x.1)),
+        sun_h,
+        tmax: round_i(max_of(data.iter().filter_map(|h| h.temp)).unwrap_or(0.0)),
+        tmin: round_i(min_of(data.iter().filter_map(|h| h.temp)).unwrap_or(0.0)),
+        rain,
+        wind: round_i(max_of(data.iter().filter_map(|h| h.wind)).unwrap_or(0.0)),
+        wdir: wdir.map(|d| round_i(d) % 360).unwrap_or(0),
+        cls: day_class(sun_h_raw, daylen_h, rain as f64).to_string(),
+    }
+}
+
 /// Aggregates the weather of all sample points of one region.
-///
-/// `nearest` is the index (into `points`) of the point closest to the region
-/// center; its daily sunrise/sunset is used. `center` is (lon, lat) for the
-/// computed fallback.
+/// `center` is (lon, lat); sunrise/sunset are computed there.
 pub fn aggregate_region(
     points: &[&PointWeather],
-    nearest: usize,
     center: (f64, f64),
     axis: &TimeAxis,
 ) -> RegionOut {
-    let nh = axis.hours.len();
-    let mut cls = String::with_capacity(nh);
-    let mut sun = Vec::with_capacity(nh);
-    let mut sunny = Vec::with_capacity(nh);
-    let mut rain = Vec::with_capacity(nh);
-    let mut temp = Vec::with_capacity(nh);
-    let mut wind = Vec::with_capacity(nh);
-    let mut wdir = Vec::with_capacity(nh);
-
-    for &t in &axis.hours {
-        let samples: Vec<HourSample> = points.iter().filter_map(|p| p.hourly.at(t)).collect();
-        let sun_vals: Vec<f64> = samples
-            .iter()
-            .filter_map(|s| s.sunshine)
-            .map(sun_pct)
-            .collect();
-        let sun_m = mean(sun_vals.iter().copied()).map(round_i);
-        let sunny_m = (!sun_vals.is_empty()).then(|| {
-            let k = sun_vals.iter().filter(|&&v| v >= 50.0).count();
-            round_i(k as f64 * 100.0 / sun_vals.len() as f64)
-        });
-        let rain_m = mean(samples.iter().filter_map(|s| s.precip_prob)).map(round_i);
-        let precip_m = mean(samples.iter().filter_map(|s| s.precip)).unwrap_or(0.0);
-        let day_flags: Vec<f64> = samples.iter().filter_map(|s| s.is_day).collect();
-        let nights = day_flags.iter().filter(|&&d| d < 0.5).count();
-        let night = nights * 2 > day_flags.len();
-
-        let c = if samples.is_empty() {
-            // No data at all: decide night from the computed sun position.
-            if sun::elevation(t, center.1, center.0) < sun::HORIZON_ELEVATION_DEG {
-                'N'
-            } else {
-                'B'
-            }
-        } else {
-            hour_class(
-                night,
-                rain_m.unwrap_or(0) as f64,
-                precip_m,
-                sun_m.unwrap_or(0) as f64,
-            )
-        };
-        cls.push(c);
-        sun.push(sun_m);
-        sunny.push(sunny_m);
-        rain.push(rain_m);
-        temp.push(mean(samples.iter().filter_map(|s| s.temp)).map(round_i));
-        wind.push(mean(samples.iter().filter_map(|s| s.wind)).map(round_i));
-        wdir.push(
-            wind_dir_mean(samples.iter().filter_map(|s| s.wdir.map(|d| (s.wind, d))))
-                .map(|d| round_i(d) % 360),
-        );
-    }
-
-    let hourly = RegionHourly {
-        cls,
-        sun: fill(sun),
-        sunny: fill(sunny),
-        rain: fill(rain),
-        temp: fill(temp),
-        wind: fill(wind),
-        wdir: fill(wdir),
+    let aggs: Vec<HourAgg> = axis
+        .hours
+        .iter()
+        .map(|&t| region_hour(points, t, center))
+        .collect();
+    let col = |f: &dyn Fn(&HourAgg) -> Option<f64>| -> Vec<i32> {
+        fill(aggs.iter().map(|h| f(h).map(round_i)).collect())
     };
-
+    let hourly = RegionHourly {
+        cls: aggs.iter().map(HourAgg::class).collect(),
+        sun: col(&|h| h.sun),
+        sunny: col(&|h| h.sunny),
+        rain: col(&|h| h.rain),
+        temp: col(&|h| h.temp),
+        wind: col(&|h| h.wind),
+        wdir: fill(
+            aggs.iter()
+                .map(|h| h.wdir.map(|d| round_i(d) % 360))
+                .collect(),
+        ),
+    };
     let daily = axis
         .days
         .iter()
-        .map(|&date| {
-            let ds: Vec<_> = points.iter().filter_map(|p| p.daily.at(date)).collect();
-            let near = points.get(nearest).and_then(|p| p.daily.at(date));
-            let computed = sun::sunrise_sunset(date, center.1, center.0);
-            let rise = near.and_then(|d| d.sunrise).or(computed.map(|c| c.0));
-            let set = near.and_then(|d| d.sunset).or(computed.map(|c| c.1));
-            let daylen_h = match (rise, set) {
-                (Some(r), Some(s)) if s > r => (s - r) as f64 / 3600.0,
-                _ => 0.0,
-            };
-            let sun_h_raw = mean(ds.iter().filter_map(|d| d.sunshine)).unwrap_or(0.0) / 3600.0;
-            let sun_h = (sun_h_raw * 10.0).round() / 10.0;
-            let rain = round_i(mean(ds.iter().filter_map(|d| d.precip_prob_max)).unwrap_or(0.0));
-            let wd = wind_dir_mean(
-                ds.iter()
-                    .filter_map(|d| d.wdir_dominant.map(|w| (d.wind_max, w))),
-            );
-            RegionDaily {
-                date: date.format("%Y-%m-%d").to_string(),
-                sunrise: rise.map(fmt_hm),
-                sunset: set.map(fmt_hm),
-                sun_h,
-                tmax: round_i(mean(ds.iter().filter_map(|d| d.tmax)).unwrap_or(0.0)),
-                tmin: round_i(mean(ds.iter().filter_map(|d| d.tmin)).unwrap_or(0.0)),
-                rain,
-                wind: round_i(mean(ds.iter().filter_map(|d| d.wind_max)).unwrap_or(0.0)),
-                wdir: wd.map(|d| round_i(d) % 360).unwrap_or(0),
-                cls: day_class(sun_h_raw, daylen_h, rain as f64).to_string(),
-            }
-        })
+        .map(|&d| region_day(points, d, center))
         .collect();
-
     RegionOut { hourly, daily }
 }
 
@@ -372,39 +408,76 @@ mod tests {
             .unwrap()
             .to_utc();
         let axis = TimeAxis::new(now);
-        let out = aggregate_region(&refs, 0, (6.6, 50.25), &axis);
+        let out = aggregate_region(&refs, (6.6, 50.25), &axis);
         let h = &out.hourly;
         assert_eq!(h.cls.len(), 48);
-        // 00:00 both night.
         assert_eq!(&h.cls[0..2], "NN");
-        // 10:00: sun (100 + 16.7)/2 = 58 -> H; rain mean 35 -> no R.
-        assert_eq!(h.sun[10], 58);
+        // Hour 10..11 uses sunshine/rain at 11:00: sun (75 + 0)/2 -> 38,
+        // rain (5 + 90)/2 = 47.5 -> 48 (< 50, no R) -> W.
+        assert_eq!(h.sun[10], 38);
         assert_eq!(h.sunny[10], 50);
-        assert_eq!(h.rain[10], 35);
-        assert_eq!(h.cls.as_bytes()[10], b'H');
-        // 11:00: rain mean 47.5 -> 48 < 50, sun (75+0)/2 -> 38 -> W.
-        assert_eq!(h.cls.as_bytes()[11], b'W');
+        assert_eq!(h.rain[10], 48);
+        assert_eq!(h.cls.as_bytes()[10], b'W');
+        // Temperature stays instantaneous at 10:00: (9.8 + 7.4)/2.
+        assert_eq!(h.temp[10], 9);
+        // Hour 11..12: rain (5 + 95)/2 = 50 and 0.75 mm -> R.
+        assert_eq!(h.cls.as_bytes()[11], b'R');
         // 01:00 temp only from second point (first is null).
         assert_eq!(h.temp[1], 5);
         // Speed weighted wdir at 10:00 lies between 230 and 260, nearer 260.
         assert!(h.wdir[10] > 245 && h.wdir[10] < 260, "{}", h.wdir[10]);
-        // Gaps after 11:00 carried forward.
-        assert_eq!(h.temp[47], h.temp[11]);
+        // Gaps carried forward; hours without data use the sun position.
+        assert_eq!(h.temp[47], h.temp[12]);
+        assert_eq!(h.cls.as_bytes()[22], b'N');
+        assert_eq!(h.cls.as_bytes()[13], b'B');
 
         let d0 = &out.daily[0];
         assert_eq!(d0.date, "2026-11-07");
-        assert_eq!(d0.sunrise.as_deref(), Some("07:32"));
-        assert_eq!(d0.sunset.as_deref(), Some("16:59"));
-        // (24120 + 1800) / 2 / 3600 = 3.6 h of 9.45 h daylight = 38 % -> W.
-        assert_eq!(d0.sun_h, 3.6);
-        assert_eq!(d0.cls, "W");
-        assert_eq!(d0.rain, 53);
-        let d1 = &out.daily[1];
-        assert_eq!(d1.cls, "R");
-        assert_eq!(d1.tmax, 9);
-        // Days without data: computed sunrise/sunset fallback, zero sun.
+        let rise = d0.sunrise.as_deref().unwrap();
+        let set = d0.sunset.as_deref().unwrap();
+        assert!(("07:25".."07:40").contains(&rise), "{rise}");
+        assert!(("16:50".."17:05").contains(&set), "{set}");
+        // Sun: 37.5 % + 25 % + 25 % of an hour = 0.875 h.
+        assert_eq!(d0.sun_h, 0.9);
+        assert_eq!(d0.tmax, 9);
+        assert_eq!(d0.tmin, 5);
+        // Max rain over daylight hours, max wind over all hours.
+        assert_eq!(d0.rain, 50);
+        assert_eq!(d0.wind, 21);
+        assert_eq!(d0.cls, "B");
+        // Days without data: computed sunrise/sunset, zero sun.
         let d6 = &out.daily[6];
         assert!(d6.sunrise.is_some() && d6.sunset.is_some());
         assert_eq!(d6.sun_h, 0.0);
+    }
+
+    #[test]
+    fn daily_rain_class_and_dst_day() {
+        // Constant rainy weather over a 25-hour DST day: R, 25 hours counted.
+        let start = local_midnight(NaiveDate::from_ymd_opt(2026, 10, 25).unwrap());
+        let mut hs = crate::openmeteo::HourlySeries::with_capacity(200);
+        for k in 0..(7 * 24 + 2) {
+            hs.time.push(start + k * 3600);
+            hs.sunshine.push(Some(360.0));
+            hs.precip_prob.push(Some(80.0));
+            hs.precip.push(Some(1.0));
+            hs.temp.push(Some(10.0));
+            hs.wind.push(Some(20.0));
+            hs.wdir.push(Some(270.0));
+            hs.is_day.push(Some(1.0));
+        }
+        let pw = PointWeather { hourly: hs };
+        let axis = TimeAxis::new(
+            DateTime::parse_from_rfc3339("2026-10-25T09:00:00+01:00")
+                .unwrap()
+                .to_utc(),
+        );
+        let out = aggregate_region(&[&pw], (7.0, 50.0), &axis);
+        let d0 = &out.daily[0];
+        assert_eq!(d0.sun_h, 2.5);
+        assert_eq!(d0.rain, 80);
+        assert_eq!(d0.wdir, 270);
+        assert_eq!(d0.cls, "W"); // 2.5 h is not < 2 h, ~27 % of daylight
+        assert!(out.hourly.cls.chars().all(|c| c == 'R'));
     }
 }

@@ -3,7 +3,12 @@
 Rust-Rechenkern von Womo-Wetter. Holt die Wettervorhersage (Open-Meteo, Modell `icon_seamless`)
 für ein regelmäßiges Gitter über allen Regionen, fasst sie je Region zusammen (Klassen
 S/H/W/B/R/N, Sonnenanteil, Regen, Temperatur, Wind) und schreibt die JSON-Dateien für die
-Web-App. Das Ausgabeformat ist in [`docs/DATENFORMAT.md`](../docs/DATENFORMAT.md) festgelegt.
+Web-App.
+
+Abgefragt werden nur 7 stündliche Variablen (jeder Ort = 1 Open-Meteo-Aufruf, ~8 000/Tag bei
+Lauf alle 3 h). Tageswerte werden daraus abgeleitet, Sonnenauf-/-untergang berechnet der Kern
+selbst (`sun.rs`). Stunde `h` in der Ausgabe beschreibt h…h+1; Sonnenschein und Niederschlag
+werden dafür vom Open-Meteo-Zeitstempel h+1 genommen (Details in `docs/DATENFORMAT.md`). Das Ausgabeformat ist in [`docs/DATENFORMAT.md`](../docs/DATENFORMAT.md) festgelegt.
 
 ## Befehle
 
@@ -31,7 +36,7 @@ Wichtige Optionen von `forecast`:
 | `--step 0.25` | Gitterweite in Grad (Regionen mit < 3 Gitterpunkten bekommen Zusatzpunkte) |
 | `--now <RFC 3339>` | Referenzzeit (Standard: jetzt); Stundenachse beginnt 00:00 Ortszeit dieses Tages |
 | `--mock` | synthetisches Wetter, `"mock": true` in `latest.json` |
-| `--pause 16` | Sekunden zwischen den Paketen à 100 Orten (Open-Meteo-Minutenlimit) |
+| `--pause 10` | Sekunden zwischen den Paketen à 100 Orten (Open-Meteo-Minutenlimit 600 Aufrufe/min) |
 | `--api-url`, `--apikey` | anderer Endpunkt / API-Schlüssel (auch per `OPEN_METEO_URL`, `OPEN_METEO_APIKEY`) |
 
 ## Tests

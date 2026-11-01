@@ -357,7 +357,10 @@ mod tests {
         let pts = parse_response(MULTI).unwrap();
         assert_eq!(pts.len(), 2);
         let h = &pts[0].hourly;
-        assert_eq!(h.time, vec![T0, T0 + H, T0 + 10 * H, T0 + 11 * H, T0 + 12 * H]);
+        assert_eq!(
+            h.time,
+            vec![T0, T0 + H, T0 + 10 * H, T0 + 11 * H, T0 + 12 * H]
+        );
         assert_eq!(h.sunshine[2], Some(3600.0));
         // Null values become None.
         assert_eq!(h.temp[1], None);
@@ -399,10 +402,19 @@ mod tests {
 
     #[test]
     fn sunrise_hour_counts_as_day_only_with_sun() {
-        assert_eq!(two_hours([0.0, 1.0], 900.0).window(T0).unwrap().is_day, Some(1.0));
-        assert_eq!(two_hours([0.0, 1.0], 0.0).window(T0).unwrap().is_day, Some(0.0));
+        assert_eq!(
+            two_hours([0.0, 1.0], 900.0).window(T0).unwrap().is_day,
+            Some(1.0)
+        );
+        assert_eq!(
+            two_hours([0.0, 1.0], 0.0).window(T0).unwrap().is_day,
+            Some(0.0)
+        );
         // Sunset hour: day at h, night at h+1 -> day.
-        assert_eq!(two_hours([1.0, 0.0], 0.0).window(T0).unwrap().is_day, Some(1.0));
+        assert_eq!(
+            two_hours([1.0, 0.0], 0.0).window(T0).unwrap().is_day,
+            Some(1.0)
+        );
     }
 
     #[test]
