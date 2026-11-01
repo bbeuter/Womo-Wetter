@@ -33,6 +33,18 @@ export function wxAt(grid: Grid | null, idx: number, lon: number, lat: number): 
   return { cls: sun >= 75 ? 'S' : sun >= 50 ? 'H' : sun >= 25 ? 'W' : 'B', sun };
 }
 
+export const AMEN: Record<string, { icon: string; label: string }> = {
+  P: { icon: '🔌', label: 'Strom' }, W: { icon: '🚰', label: 'Frischwasser' }, T: { icon: '🚻', label: 'WC' },
+  S: { icon: '🚿', label: 'Dusche' }, D: { icon: '♻️', label: 'Entsorgung' }, I: { icon: '📶', label: 'WLAN' },
+};
+const GENERIC = new Set(['Stellplatz', 'Campingplatz', 'Wohnmobilstellplatz']);
+/** Google Maps: Suche nach dem Namen an der Position – zeigt Sterne und Rezensionen. */
+export function reviewUrl(s: Stellplatz): string {
+  const q = s.name && !GENERIC.has(s.name) ? s.name : KIND[kindOf(s)].label;
+  return `https://www.google.com/maps/search/${encodeURIComponent(q)}/@${s.lat},${s.lon},16z`;
+}
+export const p4nUrl = (s: Stellplatz): string => `https://park4night.com/de/search?lat=${s.lat}&lng=${s.lon}&z=15`;
+
 const feeText = (f?: string): string =>
   !f ? '' : f === 'yes' ? 'kostenpflichtig' : f === 'no' ? 'kostenlos' : f === 'donation' ? 'Spende' : esc(f.slice(0, 30));
 
@@ -53,21 +65,38 @@ export function sitesSection(ctx: Ctx, id: string): string {
     `<button type="button" class="fchip" data-f="${v}" aria-pressed="${settings.siteFilter === v}">${label} <small>${count}</small></button>`;
   const item = ({ s, w, d }: typeof list[number]) => {
     const k = KIND[kindOf(s)];
+    const name = esc(s.name ?? k.label);
     const web = safeUrl(s.website);
     const fee = feeText(s.fee);
+    const am = [...(s.am ?? '')].filter(c => AMEN[c]);
     const sun = w ? `<span class="ssun c${w.cls}" style="background:${CLASSES[w.cls].color}" title="${CLASSES[w.cls].label}">${w.cls === 'N' || w.cls === 'R' ? CLASSES[w.cls].icon : `☀︎ ${w.sun}%`}</span>` : '';
+    const facts = [
+      s.stars ? `${'★'.repeat(s.stars)} Kategorie` : '',
+      s.cap ? `${s.cap} Plätze` : '',
+      fee ? fee[0].toUpperCase() + fee.slice(1) : '',
+    ].filter(Boolean);
     return `<li class="site" data-site="${esc(s.id)}">
-      <span class="sicon" aria-hidden="true">${k.icon}</span>
-      <span class="name"><b>${esc(s.name ?? k.label)}</b><small>${d.km} km · ${d.txt}${fee ? ' · ' + fee : ''}</small></span>
-      ${sun}
-      <span class="sbtns">${web ? `<a class="lnk" href="${esc(web)}" target="_blank" rel="noopener" aria-label="Webseite ${esc(s.name ?? '')}">Web</a>` : ''}
-      <a class="lnk go" href="${esc(routeUrl(s.lat, s.lon))}" target="_blank" rel="noopener" aria-label="Route zu ${esc(s.name ?? k.label)}">Route</a></span></li>`;
+      <div class="srow" role="button" tabindex="0" aria-expanded="false">
+        <span class="sicon" aria-hidden="true">${k.icon}</span>
+        <span class="name"><b>${name}</b><small>${d.km} km · ${d.txt}${s.stars ? ' · ' + '★'.repeat(s.stars) : ''}${am.length ? ` · <span class="amen" aria-label="${am.map(c => AMEN[c].label).join(', ')}">${am.map(c => AMEN[c].icon).join('')}</span>` : ''}</small></span>
+        ${sun}
+        <a class="lnk go" href="${esc(routeUrl(s.lat, s.lon))}" target="_blank" rel="noopener" aria-label="Route zu ${name}">Route</a>
+      </div>
+      <div class="sx" hidden>
+        <p>${k.label}${facts.length ? ' · ' + facts.join(' · ') : ''}</p>
+        ${am.length ? `<p class="amenl">${am.map(c => `<span>${AMEN[c].icon} ${AMEN[c].label}</span>`).join('')}</p>` : '<p class="hint">Keine Ausstattung in OpenStreetMap eingetragen.</p>'}
+        <div class="sxb">
+          <a class="lnk" href="${esc(reviewUrl(s))}" target="_blank" rel="noopener">★ Bewertungen (Google)</a>
+          <a class="lnk" href="${esc(p4nUrl(s))}" target="_blank" rel="noopener">park4night</a>
+          ${web ? `<a class="lnk" href="${esc(web)}" target="_blank" rel="noopener">Webseite</a>` : ''}
+        </div>
+      </div></li>`;
   };
   const TOP = 10;
   return `<section class="sitesec" id="sites">
     <h3>Übernachten in der Region</h3>
     <div class="fchips" role="group" aria-label="Platzart">${chip('all', 'Alle', all.length)}${chip('caravan_site', '🚐 Stellplätze', n.caravan_site)}${chip('camp_site', '⛺ Camping', n.camp_site)}</div>
-    <p class="hint">Sortiert nach Sonne am Platz um die gewählte Uhrzeit, dann Entfernung. Tippe auf einen Punkt in der Karte.</p>
+    <p class="hint">Sortiert nach Sonne am Platz um die gewählte Uhrzeit, dann Entfernung. Antippen zeigt Ausstattung und Bewertungen.</p>
     ${list.length
       ? `<ul class="sites">${list.slice(0, TOP).map(item).join('')}</ul>` +
         (list.length > TOP ? `<details class="more"><summary>Alle ${list.length} anzeigen</summary><ul class="sites">${list.slice(TOP).map(item).join('')}</ul></details>` : '')
@@ -83,20 +112,34 @@ export function bindSites(ctx: Ctx, el: HTMLElement): void {
     ctx.renderAll();
     document.getElementById('sites')?.scrollIntoView({ block: 'start' });
   }));
-  el.querySelectorAll<HTMLLIElement>('.site').forEach(li => li.addEventListener('click', e => {
-    if ((e.target as HTMLElement).closest('a')) return;
-    ctx.st.map.highlightSite(li.dataset.site!);
-    markSite(li.dataset.site!, false);
-  }));
+  el.querySelectorAll<HTMLElement>('.srow').forEach(row => {
+    const act = (e: Event) => {
+      if ((e.target as HTMLElement).closest('a')) return;
+      const id = row.parentElement!.dataset.site!;
+      const wasOpen = row.getAttribute('aria-expanded') === 'true';
+      ctx.st.map.highlightSite(id);
+      markSite(id, false);
+      if (wasOpen) toggle(row.parentElement!, false);
+    };
+    row.addEventListener('click', act);
+    row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(e); } });
+  });
 }
 
-/** Platz in der Liste hervorheben (und bei Bedarf hinscrollen). */
+function toggle(li: Element, open: boolean): void {
+  li.querySelector('.srow')?.setAttribute('aria-expanded', String(open));
+  const sx = li.querySelector<HTMLElement>('.sx');
+  if (sx) sx.hidden = !open;
+}
+
+/** Platz in der Liste hervorheben und aufklappen (bei Bedarf hinscrollen). */
 export function markSite(id: string, scroll: boolean): void {
-  document.querySelectorAll('.site.sel').forEach(x => x.classList.remove('sel'));
+  document.querySelectorAll('.site.sel').forEach(x => { x.classList.remove('sel'); toggle(x, false); });
   const li = document.querySelector<HTMLLIElement>(`.site[data-site="${CSS.escape(id)}"]`);
   if (!li) return;
   const more = li.closest('details');
   if (more) more.open = true;
   li.classList.add('sel');
+  toggle(li, true);
   if (scroll) li.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }

@@ -82,6 +82,13 @@ pub struct Stellplatz {
     pub fee: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub website: Option<String>,
+    /// Amenity codes (see DATENFORMAT §4), e.g. "PWT".
+    #[serde(rename = "am", skip_serializing_if = "String::is_empty")]
+    pub amenities: String,
+    #[serde(rename = "cap", skip_serializing_if = "Option::is_none")]
+    pub capacity: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stars: Option<u8>,
 }
 
 /// Encodes one string per output hour (h..h+1, see `HourlySeries::window`), row by row from south (lat0) to north, west → east.
@@ -197,6 +204,9 @@ mod tests {
             kind: "caravan_site".into(),
             fee: None,
             website: Some("https://x".into()),
+            amenities: String::new(),
+            capacity: None,
+            stars: None,
         };
         let j = serde_json::to_string(&s).unwrap();
         assert_eq!(
