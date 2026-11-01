@@ -5,14 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
     "sample-data": "node scripts/make-sample-data.mjs",
     "countries": "node scripts/make-countries.mjs",
     "icons": "node scripts/make-icons.mjs"
   },
   "devDependencies": {
+    "@types/node": "^26.6.6",
     "polygon-clipping": "^0.15.7",
     "typescript": "^7.0.2",
     "vite": "^8.3.5"

@@ -29,3 +29,24 @@ export const TOWNS: Town[] = [
   T('Luxemburg', 'LU', 49.612, 6.130), T('Esch-sur-Alzette', 'LU', 49.496, 5.981),
 ];
 export const DEFAULT_HOME: Town = TOWNS.find(t => t.name === 'Köln')!;
+
+/** Zusätzliche Orte nur zur Kartenbeschriftung im Detail-Zoom. */
+export const LABEL_TOWNS: Town[] = [
+  T('Straßburg', 'FR', 48.573, 7.752), T('Colmar', 'FR', 48.079, 7.358), T('Mülhausen', 'FR', 47.750, 7.336),
+  T('Metz', 'FR', 49.120, 6.176), T('Nancy', 'FR', 48.692, 6.184), T('Épinal', 'FR', 48.173, 6.450),
+  T('Lille', 'FR', 50.629, 3.057), T('Reims', 'FR', 49.258, 4.032), T('Charleville', 'FR', 49.773, 4.720),
+  T('Dünkirchen', 'FR', 51.034, 2.377), T('Basel', 'FR', 47.560, 7.588),
+  T('Monschau', 'DE', 50.555, 6.240), T('Daun', 'DE', 50.198, 6.832), T('Cochem', 'DE', 50.147, 7.167),
+  T('Bitburg', 'DE', 49.967, 6.527), T('Prüm', 'DE', 50.207, 6.424), T('Bernkastel', 'DE', 49.916, 7.071),
+  T('Garmisch', 'DE', 47.492, 11.096), T('Berchtesgaden', 'DE', 47.631, 13.002), T('Lindau', 'DE', 47.546, 9.684),
+  T('Titisee', 'DE', 47.903, 8.155), T('Baden-Baden', 'DE', 48.761, 8.240), T('Winterberg', 'DE', 51.193, 8.533),
+  T('Wernigerode', 'DE', 51.835, 10.785), T('Fulda', 'DE', 50.555, 9.680), T('Bamberg', 'DE', 49.898, 10.902),
+  T('Bayreuth', 'DE', 49.946, 11.578), T('Cuxhaven', 'DE', 53.861, 8.694), T('Husum', 'DE', 54.477, 9.052),
+  T('Sylt', 'DE', 54.907, 8.317), T('Stralsund', 'DE', 54.309, 13.082), T('Görlitz', 'DE', 51.153, 14.987),
+  T('Frankfurt (Oder)', 'DE', 52.347, 14.551), T('Lüneburg', 'DE', 53.249, 10.411), T('Jena', 'DE', 50.927, 11.586),
+  T('Texel', 'NL', 53.055, 4.797), T('Leeuwarden', 'NL', 53.201, 5.800), T('Middelburg', 'NL', 51.499, 3.611),
+  T('Venlo', 'NL', 51.370, 6.172), T('Nijmegen', 'NL', 51.842, 5.853),
+  T('Ostende', 'BE', 51.216, 2.927), T('Bastogne', 'BE', 50.003, 5.716), T('Spa', 'BE', 50.492, 5.865),
+  T('Dinant', 'BE', 50.261, 4.912), T('Mons', 'BE', 50.454, 3.952), T('Hasselt', 'BE', 50.931, 5.338),
+  T('Clerf', 'LU', 50.055, 6.028), T('Echternach', 'LU', 49.812, 6.418),
+];

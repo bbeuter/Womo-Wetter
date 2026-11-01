@@ -3,7 +3,7 @@ import countriesRaw from './assets/countries.json';
 import { CLASSES, asCls, type AppData, type Cls, type Grid, type LonLat, type Polygon, type Region } from './data';
 import { bboxOf, makeProjection, pathOf, type BBox, type Projection } from './geo';
 import { svgEl, reducedMotion } from './dom';
-import { TOWNS } from './towns';
+import { TOWNS, LABEL_TOWNS } from './towns';
 import { startPlace, favs } from './store';
 
 const countries = countriesRaw as unknown as Record<string, LonLat[][][]>;
@@ -57,7 +57,9 @@ export class SunMap {
       this.regs.set(r.id, { r, path, badge, text, d, bb: bboxOf(r.polys, this.P) });
     }
     this.home = svgEl('g', { class: 'home' }, gTop);
-    svgEl('circle', { r: 6 }, this.home);
+    // Stecknadel: Spitze zeigt auf den Startort
+    svgEl('path', { d: 'M0 0C-2-5-8-9-8-15a8 8 0 0 1 16 0c0 6-6 10-8 15z', class: 'pin' }, this.home);
+    svgEl('circle', { cy: -15, r: 3, class: 'pinhole' }, this.home);
     this.updateHome();
     this.placeBadges();
   }
@@ -160,26 +162,28 @@ export class SunMap {
     if (this.data.grid) this.heat(inner, this.data.grid, idx, e.bb);
     svgEl('path', { d: e.d, class: 'hl' }, g);
 
-    // Orte (aus eingebauter Liste) mit einfacher Kollisionsvermeidung
-    const fs = 13 * px, placed: BBox[] = [];
-    const [vx, vy, vw, vh] = vb;
-    for (const t of TOWNS) {
-      const [x, y] = this.P.proj(t.lon, t.lat);
-      if (x < vx || x > vx + vw || y < vy || y > vy + vh) continue;
-      const box = { x: x - fs * 0.3, y: y - fs * 1.2, w: fs * (0.62 * t.name.length + 1), h: fs * 1.4 };
-      if (box.x + box.w > vx + vw) continue;
-      if (placed.some(b => b.x < box.x + box.w && box.x < b.x + b.w && b.y < box.y + box.h && box.y < b.y + b.h)) continue;
-      placed.push(box);
-      svgEl('circle', { cx: x, cy: y, r: 2.6 * px, class: 'towndot' }, g);
-      const tx = svgEl('text', { x: x + fs * 0.4, y: y - fs * 0.3, class: 'town', 'font-size': fs.toFixed(2) }, g);
-      tx.textContent = t.name;
-    }
     // Stellplätze dieser Region
     for (const s of this.data.sites ?? []) {
       if (s.region !== id) continue;
       const [x, y] = this.P.proj(s.lon, s.lat);
       const c = svgEl('circle', { cx: x, cy: y, r: 4 * px, class: 'site' }, g);
       svgEl('title', {}, c).textContent = s.name ?? 'Wohnmobil-Stellplatz';
+    }
+    // Orte (aus eingebauter Liste) mit einfacher Kollisionsvermeidung
+    const fs = 13 * px;
+    const [vx, vy, vw, vh] = vb;
+    // freizuhaltende Bereiche: Zurück-Knopf oben links, Legende unten, Startort
+    const [hx, hy] = this.P.proj(startPlace().lon, startPlace().lat);
+    const placed: BBox[] = [{ x: vx, y: vy, w: 150 * px, h: 56 * px }, { x: hx - 10 * px, y: hy - 26 * px, w: 20 * px, h: 28 * px }];
+    for (const t of [...TOWNS, ...LABEL_TOWNS]) {
+      const [x, y] = this.P.proj(t.lon, t.lat);
+      const box = { x: x - fs * 0.3, y: y - fs * 1.2, w: fs * (0.6 * t.name.length + 1), h: fs * 1.5 };
+      if (box.x < vx + 4 * px || box.y < vy + 4 * px || box.x + box.w > vx + vw - 4 * px || y > vy + vh - 34 * px) continue;
+      if (placed.some(b => b.x < box.x + box.w && box.x < b.x + b.w && b.y < box.y + box.h && box.y < b.y + b.h)) continue;
+      placed.push(box);
+      svgEl('circle', { cx: x, cy: y, r: 2.6 * px, class: 'towndot' }, g);
+      const tx = svgEl('text', { x: x + fs * 0.4, y: y - fs * 0.3, class: 'town', 'font-size': fs.toFixed(2) }, g);
+      tx.textContent = t.name;
     }
   }
 
