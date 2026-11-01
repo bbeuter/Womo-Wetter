@@ -1,0 +1,15 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "id": "west", "name": "Westquadrat", "cc": "DE", "center": [6.5, 50.5] },
+      "geometry": { "type": "Polygon", "coordinates": [[[6.0, 50.0], [7.0, 50.0], [7.0, 51.0], [6.0, 51.0], [6.0, 50.0]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "id": "east", "name": "Ostquadrat", "cc": "NL", "center": [7.5, 50.5] },
+      "geometry": { "type": "MultiPolygon", "coordinates": [[[[7.4, 50.0], [7.6, 50.0], [7.6, 51.0], [7.4, 51.0], [7.4, 50.0]]]] }
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "latitude": 50.25, "longitude": 6.5, "generationtime_ms": 1.2, "utc_offset_seconds": 3600,
+    "timezone": "Europe/Berlin", "timezone_abbreviation": "GMT+1", "elevation": 512.0, "location_id": 0,
+    "hourly_units": { "time": "unixtime", "sunshine_duration": "s", "precipitation_probability": "%",
+      "precipitation": "mm", "temperature_2m": "°C", "wind_speed_10m": "km/h", "wind_direction_10m": "°", "is_day": "" },
+    "hourly": {
+      "time": [1794006000, 1794009600, 1794042000, 1794045600, 1794049200],
+      "sunshine_duration": [0.0, 0.0, 3600.0, 2700.0, 1800.0],
+      "precipitation_probability": [10, 15, 0, 5, 5],
+      "precipitation": [0.0, 0.0, 0.0, 0.0, 0.0],
+      "temperature_2m": [4.2, null, 9.8, 11.1, 11.5],
+      "wind_speed_10m": [8.3, 7.9, 12.0, 14.4, 15.0],
+      "wind_direction_10m": [220, 225, 230, 240, 245],
+      "is_day": [0, 0, 1, 1, 1]
+    }
+  },
+  {
+    "latitude": 50.25, "longitude": 6.75, "generationtime_ms": 1.1, "utc_offset_seconds": 3600,
+    "timezone": "Europe/Berlin", "timezone_abbreviation": "GMT+1", "elevation": 430.0, "location_id": 1,
+    "hourly": {
+      "time": [1794006000, 1794009600, 1794042000, 1794045600, 1794049200],
+      "sunshine_duration": [0.0, 0.0, 600.0, 0.0, 0.0],
+      "precipitation_probability": [80, 85, 70, 90, 95],
+      "precipitation": [0.6, 1.2, 0.3, 2.0, 1.5],
+      "temperature_2m": [5.0, 5.1, 7.4, 7.0, 6.8],
+      "wind_speed_10m": [20.0, 22.0, 25.0, 24.0, 26.0],
+      "wind_direction_10m": [250, 255, 260, 265, 270],
+      "is_day": [0, 0, 1, 1, 1]
+    }
+  }
+]

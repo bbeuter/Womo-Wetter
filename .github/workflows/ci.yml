@@ -1,0 +1,44 @@
+# Prüft Rust-Kern und Web-App bei jedem Push und Pull Request.
+name: CI
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: womo-core
+      - working-directory: womo-core
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+      - name: Beispieldaten erzeugen (Smoke-Test)
+        run: |
+          mkdir -p /tmp/out
+          cargo run --manifest-path womo-core/Cargo.toml -- forecast --mock --regions data/regions.geojson --out /tmp/out
+          ls -la /tmp/out
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - working-directory: web
+        run: |
+          npm ci
+          npx tsc --noEmit
+          npm run build
